@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import date
-from backend.database import get_db
-from backend import models, schemas
+from database import get_db
+import models
+import schemas
 
 router = APIRouter(prefix="/calculations", tags=["calculations"])
 
@@ -113,4 +114,5 @@ def get_calculation_result(calculation_date: date, boiler_number: int, db: Sessi
 @router.get("/", response_model=list[schemas.CalculationResult])
 def get_all_calculations(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     """Получение всех результатов расчетов"""
+
     return db.query(models.CalculationResult).offset(skip).limit(limit).all()
