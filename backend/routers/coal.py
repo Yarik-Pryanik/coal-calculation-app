@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from datetime import date
-from backend.database import get_db
-from backend import models, schemas
+from database import get_db
+import models
+import schemas
 
 router = APIRouter(prefix="/coal", tags=["coal"])
 
@@ -58,4 +59,5 @@ def get_all_coal_data(
         limit: int = 100,
         db: Session = Depends(get_db)):
     """Получение всех данных об угле"""
+
     return db.query(models.CoalData).offset(skip).limit(limit).all()
