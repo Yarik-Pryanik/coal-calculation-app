@@ -38,7 +38,7 @@ app.include_router(calculations_router)
 # Отдаем фронтенд для корневого пути
 @app.get("/")
 def serve_frontend():
-    return FileResponse('frontend/index.html')
+    return FileResponse('../frontend/index.html')
 
 # Health check
 @app.get("/health")
@@ -56,4 +56,5 @@ if __name__ == "__main__":
     print("Документация: http://localhost:8000/docs")
 
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
