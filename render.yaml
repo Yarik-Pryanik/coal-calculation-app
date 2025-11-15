@@ -4,9 +4,13 @@ services:
     env: python
     plan: free
     buildCommand: |
-      pip install -r requirements.txt
+      pip install --no-build-isolation -r requirements.txt
       cd backend && python -c "from database import engine, Base; import models; Base.metadata.create_all(bind=engine)"
-    startCommand: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
+    startCommand: cd backend && python -m uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
+      - key: PIP_NO_BUILD_ISOLATION
+        value: "0"
+      - key: CARGO_NET_GIT_FETCH_WITH_CLI
+        value: "true"
