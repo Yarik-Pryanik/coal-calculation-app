@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from database import engine, GITHUB_TOKEN, GITHUB_REPO
+from database import engine, Base, GITHUB_TOKEN, GITHUB_REPO
 import models
 from routers.coal import router as coal_router
 from routers.boiler import router as boiler_router
@@ -49,5 +49,6 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get('PORT', 8000))
     uvicorn.run("main:app", host="0.0.0.0", port=port)
+
 
 
