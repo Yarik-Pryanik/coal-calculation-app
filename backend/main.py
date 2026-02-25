@@ -7,6 +7,8 @@ import models
 from routers.coal import router as coal_router
 from routers.boiler import router as boiler_router
 from routers.calculations import router as calculations_router
+import atexit
+import os
 
 # Создаем таблицы в базе данных при запуске
 try:
@@ -55,6 +57,7 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get('PORT', 8000))
     uvicorn.run("main:app", host="0.0.0.0", port=port)
+
 
 
 
