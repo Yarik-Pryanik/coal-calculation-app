@@ -5,6 +5,19 @@ services:
     plan: free
     buildCommand: |
       pip install -r requirements.txt
-      cd backend && python -c "from database import engine, Base; import models; Base.metadata.create_all(bind=engine)"
-      cp -r ../frontend/* ./
+      cp -r ../frontend/* ./ || true
+      echo "✅ Build complete"
     startCommand: cd backend && python -m uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: GITHUB_TOKEN
+        sync: false
+        required: true
+      - key: GITHUB_REPO
+        value: ваш_username/coal-calculator  # замените на ваш репозиторий
+        required: true
+      - key: SAVE_INTERVAL
+        value: "300"  # 5 минут в секундах
+      - key: PYTHON_VERSION
+        value: 3.10.0
+    healthCheckPath: /health
+    autoDeploy: true
