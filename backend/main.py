@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from database import engine, save_to_github, download_from_github, GITHUB_TOKEN, GITHUB_REPO
+from database import engine, GITHUB_TOKEN, GITHUB_REPO
 import models
 from routers.coal import router as coal_router
 from routers.boiler import router as boiler_router
@@ -45,19 +45,9 @@ def serve_frontend():
 def health_check():
     return {"status": "ok", "message": "API is running", "github_configured": bool(GITHUB_TOKEN and GITHUB_REPO)}
 
-@app.post("/github/save")
-def save_to_github_endpoint():
-    success = save_to_github()
-    return {"status": "success" if success else "error"}
-
-# Загрузить с GitHub
-@app.post("/github/load")
-def load_from_github_endpoint():
-    success = download_from_github()
-    return {"status": "success" if success else "error"}
-
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get('PORT', 8000))
     uvicorn.run("main:app", host="0.0.0.0", port=port)
+
 
