@@ -139,3 +139,6 @@ def get_db():
         db.close()
 
 
+def save_to_github():
+    """Принудительное сохранение"""
+    return upload_to_github(force=True)
