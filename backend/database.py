@@ -4,6 +4,7 @@ import json
 import threading
 import tempfile
 import time
+import atexit
 from datetime import datetime
 from pathlib import Path
 from sqlalchemy import create_engine
@@ -21,22 +22,61 @@ TEMP_DIR = Path(tempfile.gettempdir()) / "coal_api"
 TEMP_DIR.mkdir(exist_ok=True)
 DB_PATH = TEMP_DIR / "coal_calculation.db"
 
-def upload_to_github():
-    """Загрузить на GitHub"""
+db_changed = False
+last_save_time = 0
+shutting_down = False
+
+def download_from_github():
+    """Загрузить базу с GitHub"""
     try:
+        if not GITHUB_TOKEN or not GITHUB_REPO:
+            return False
+        
+        url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_PATH}"
+        headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+        
+        response = requests.get(url, headers=headers)
+        
+        if response.status_code == 200:
+            content = response.json()['content']
+            with open(DB_PATH, 'wb') as f:
+                f.write(base64.b64decode(content))
+            print(f"✅ Database loaded from GitHub")
+            return True
+        else:
+            print("⚠️ No existing database on GitHub")
+            return False
+    except Exception as e:
+        print(f"⚠️ Could not load from GitHub: {e}")
+        return False
+
+def upload_to_github():
+    """Загрузить базу на GitHub"""
+    global db_changed, last_save_time, shutting_down
+    
+    try:
+        if shutting_down:
+            print("⚠️ Shutting down, skipping save")
+            return False
+            
         if not GITHUB_TOKEN or not GITHUB_REPO or not DB_PATH.exists():
             return False
         
+        if not force and not db_changed:
+            return False
+        
+        # Читаем файл
         with open(DB_PATH, 'rb') as f:
             content = base64.b64encode(f.read()).decode()
         
+        # Отправляем на GitHub
         url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_PATH}"
         headers = {"Authorization": f"token {GITHUB_TOKEN}"}
         
         get_response = requests.get(url, headers=headers)
         
         data = {
-            "message": f"Auto-backup {datetime.now().isoformat()}",
+            "message": f"Backup {datetime.now().isoformat()}",
             "content": content
         }
         
@@ -44,14 +84,23 @@ def upload_to_github():
             data["sha"] = get_response.json()['sha']
         
         response = requests.put(url, json=data, headers=headers)
-        return response.status_code in [200, 201]
+        
+        if response.status_code in [200, 201]:
+            print(f"✅ Saved to GitHub at {datetime.now().strftime('%H:%M:%S')}")
+            db_changed = False
+            last_save_time = time.time()
+            return True
+        else:
+            print(f"❌ GitHub upload failed: {response.status_code}")
+            return False
+            
     except Exception as e:
-        print(f"GitHub error: {e}")
+        print(f"❌ GitHub error: {e}")
         return False
 
 # Фоновое сохранение каждые 5 минут
 def auto_save_loop():
-    while True:
+    while not shutting_down:
         time.sleep(300)  # 5 минут
         try:
             upload_to_github()
@@ -59,21 +108,22 @@ def auto_save_loop():
         except:
             pass
 
+# Сохранение при выходе
+def shutdown_save():
+    global shutting_down
+    shutting_down = True
+    print("\n🛑 Saving before shutdown...")
+    if db_changed:
+        upload_to_github(force=True)
+    print("✅ Shutdown save complete")
+
+# Загружаем базу при старте
+download_from_github()
+
 # Запускаем фоновый поток
 threading.Thread(target=auto_save_loop, daemon=True).start()
 
-# Скачиваем при старте
-try:
-    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_PATH}"
-    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        content = response.json()['content']
-        with open(DB_PATH, 'wb') as f:
-            f.write(base64.b64decode(content))
-        print("✅ Database loaded from GitHub")
-except:
-    print("⚠️ New database")
+atexit.register(shutdown_save)
 
 # SQLAlchemy
 DATABASE_URL = f"sqlite:///{DB_PATH}"
@@ -87,4 +137,5 @@ def get_db():
         yield db
     finally:
         db.close()
+
 
