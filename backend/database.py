@@ -1,27 +1,80 @@
 import os
-import shutil
+import base64
+import json
+import tempfile
+import time
 from datetime import datetime
 from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+import requests
 
-# Определяем окружение
-IS_RENDER = os.environ.get('RENDER', False)
+# GitHub настройки
+GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN')
+GITHUB_REPO = os.environ.get('GITHUB_REPO')  # "username/repo"
+GITHUB_PATH = "database/coal_calculation.db"  # путь в репозитории
 
-# Директория для данных
-if IS_RENDER:
-    DATA_DIR = Path('/tmp/data')
-else:
-    DATA_DIR = Path("data")
+# Временная директория для работы
+TEMP_DIR = Path(tempfile.gettempdir()) / "coal_api"
+TEMP_DIR.mkdir(exist_ok=True)
+DB_PATH = TEMP_DIR / "coal_calculation.db"
 
-DATA_DIR.mkdir(exist_ok=True, parents=True)
+def upload_to_github():
+    """Загрузить на GitHub"""
+    try:
+        if not GITHUB_TOKEN or not GITHUB_REPO or not DB_PATH.exists():
+            return False
+        
+        with open(DB_PATH, 'rb') as f:
+            content = base64.b64encode(f.read()).decode()
+        
+        url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_PATH}"
+        headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+        
+        get_response = requests.get(url, headers=headers)
+        
+        data = {
+            "message": f"Auto-backup {datetime.now().isoformat()}",
+            "content": content
+        }
+        
+        if get_response.status_code == 200:
+            data["sha"] = get_response.json()['sha']
+        
+        response = requests.put(url, json=data, headers=headers)
+        return response.status_code in [200, 201]
+    except Exception as e:
+        print(f"GitHub error: {e}")
+        return False
 
-DB_PATH = DATA_DIR / "coal_calculation.db"
-BACKUP_DIR = DATA_DIR / "backups"
-BACKUP_DIR.mkdir(exist_ok=True, parents=True)
+# Фоновое сохранение каждые 5 минут
+def auto_save_loop():
+    while True:
+        time.sleep(300)  # 5 минут
+        try:
+            upload_to_github()
+            print(f"💾 Auto-saved at {datetime.now().strftime('%H:%M:%S')}")
+        except:
+            pass
 
-# SQLite движок
+# Запускаем фоновый поток
+threading.Thread(target=auto_save_loop, daemon=True).start()
+
+# Скачиваем при старте
+try:
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_PATH}"
+    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        content = response.json()['content']
+        with open(DB_PATH, 'wb') as f:
+            f.write(base64.b64decode(content))
+        print("✅ Database loaded from GitHub")
+except:
+    print("⚠️ New database")
+
+# SQLAlchemy
 DATABASE_URL = f"sqlite:///{DB_PATH}"
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -33,34 +86,3 @@ def get_db():
         yield db
     finally:
         db.close()
-
-def create_backup():
-    """Создание бэкапа базы данных"""
-    try:
-        if not DB_PATH.exists():
-            return None
-        
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_path = BACKUP_DIR / f"backup_{timestamp}.db"
-        
-        shutil.copy2(DB_PATH, backup_path)
-        
-        # Оставляем последние 3 бэкапов
-        backups = sorted(BACKUP_DIR.glob("backup_*.db"))
-        for old_backup in backups[:-3]:
-            old_backup.unlink()
-        
-        return str(backup_path)
-    except Exception as e:
-        print(f"Backup error: {e}")
-        return None
-
-def list_backups():
-    """Список бэкапов"""
-    backups = sorted(BACKUP_DIR.glob("backup_*.db"), reverse=True)
-    return [{
-        "name": b.name,
-        "size_kb": round(b.stat().st_size / 1024, 2),
-        "created_at": datetime.fromtimestamp(b.stat().st_mtime).isoformat()
-    } for b in backups]
-
