@@ -10,12 +10,15 @@ from routers.calculations import router as calculations_router
 import atexit
 import os
 
-# Создаем таблицы в базе данных при запуске
 try:
+    # Проверяем существование таблиц быстрым запросом
+    with engine.connect() as conn:
+        conn.execute("SELECT 1 FROM coal_data LIMIT 1")
+    print("✅ Tables already exist")
+except:
+    # Создаем только если нет
     Base.metadata.create_all(bind=engine)
-    print("✅ Database tables created successfully")
-except Exception as e:
-    print(f"❌ Database error: {e}")
+    print("✅ Tables created")
 
 app = FastAPI(
     title="Coal Calculation API",
@@ -57,6 +60,7 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get('PORT', 8000))
     uvicorn.run("main:app", host="0.0.0.0", port=port)
+
 
 
 
