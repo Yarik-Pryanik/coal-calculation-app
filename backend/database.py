@@ -50,7 +50,7 @@ def download_from_github():
         print(f"⚠️ Could not load from GitHub: {e}")
         return False
 
-def upload_to_github():
+def upload_to_github(force=False):
     """Загрузить базу на GitHub"""
     global db_changed, last_save_time, shutting_down
     
@@ -142,3 +142,4 @@ def get_db():
 def save_to_github():
     """Принудительное сохранение"""
     return upload_to_github(force=True)
+
