@@ -100,13 +100,15 @@ def upload_to_github(force=False):
 
 # Фоновое сохранение каждые 5 минут
 def auto_save_loop():
+    global shutting_down
     while not shutting_down:
         time.sleep(300)  # 5 минут
         try:
-            upload_to_github()
-            print(f"💾 Auto-saved at {datetime.now().strftime('%H:%M:%S')}")
-        except:
-            pass
+            if db_changed:  # Сохраняем только если были изменения
+                upload_to_github(force=True)
+                print(f"💾 Auto-saved at {datetime.now().strftime('%H:%M:%S')}")
+        except Exception as e:
+            print(f"Auto-save error: {e}")
 
 # Сохранение при выходе
 def shutdown_save():
@@ -142,4 +144,5 @@ def get_db():
 def save_to_github():
     """Принудительное сохранение"""
     return upload_to_github(force=True)
+
 
